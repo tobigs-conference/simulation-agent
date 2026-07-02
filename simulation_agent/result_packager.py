@@ -1,22 +1,8 @@
-"""
-Agent G (시뮬레이션 에이전트) - 6단계: 결과 패키징 + risk_profile 톤 조정
-
-5단계(monte_carlo.py)가 만든 Monte Carlo 결과를 받아서,
-유저의 risk_profile에 맞게 해석 문구/리스크 카드 톤을 조정하고
-프론트엔드로 전송할 최종 JSON을 패키징한다.
-
-risk_profile 톤 매핑 (Judge와 동일한 기준):
-  conservative / moderate_conservative → 리스크 중심, 보수적 톤
-  moderate                             → 균형 잡힌 중립 톤
-  aggressive / very_aggressive         → 기회 중심, 적극적 톤
-"""
-
 import logging
 from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# risk_profile → 톤 매핑
 RISK_PROFILE_TONE = {
     "conservative": "conservative",
     "moderate_conservative": "conservative",
@@ -25,7 +11,6 @@ RISK_PROFILE_TONE = {
     "very_aggressive": "aggressive",
 }
 
-# 톤별 해석 문구 템플릿
 TONE_TEMPLATES = {
     "conservative": {
         "outlook_positive": "일부 상승 가능성이 있으나, 변동성 리스크에 주의가 필요합니다.",
@@ -52,7 +37,6 @@ TONE_TEMPLATES = {
 
 
 def _get_outlook_key(expected_return_pct: float, upside_probability: float) -> str:
-    """예측 결과를 기반으로 outlook 키 결정"""
     if expected_return_pct > 2.0 and upside_probability > 0.55:
         return "outlook_positive"
     elif expected_return_pct < -2.0 or upside_probability < 0.45:
@@ -66,7 +50,6 @@ def _build_interpretation(
     tone: str,
     ticker: str,
 ) -> str:
-    """Monte Carlo 결과 기반 해석 문구 생성"""
     base = mc_result["base"]
     templates = TONE_TEMPLATES[tone]
     outlook_key = _get_outlook_key(
@@ -79,7 +62,6 @@ def _build_interpretation(
         templates[outlook_key],
     ]
 
-    # What-if 결과가 있으면 추가
     for what_if in mc_result.get("what_if", []):
         impact = what_if["impact_pct"]
         variable_name = {
@@ -114,11 +96,9 @@ def _build_risk_card(
     tone: str,
     risk_factors: list,
 ) -> dict:
-    """리스크 카드 생성"""
     base = mc_result["base"]
     pessimistic = base["scenarios"]["pessimistic"]
 
-    # 정량화 가능한 리스크 (What-if 돌린 것들)
     quantified_risks = [
         {
             "variable": w["variable"],
@@ -128,7 +108,6 @@ def _build_risk_card(
         for w in mc_result.get("what_if", [])
     ]
 
-    # 정성적 리스크 (분류됐지만 정량화 못 한 것들 — 현재는 없음, 향후 확장 가능)
     qualitative_risks = []
 
     return {
@@ -147,19 +126,7 @@ def package_result(
     risk_factors: list,
     current_price: float,
 ) -> dict:
-    """
-    6단계 메인 함수: Monte Carlo 결과를 프론트 전송용 JSON으로 패키징.
-
-    Args:
-        ticker: 종목코드
-        mc_result: 5단계 run_monte_carlo() 결과
-        user_context: get_user_context() 결과 (risk_profile 등)
-        risk_factors: 3단계 classify_risk_factors() 결과
-        current_price: 현재 종가
-
-    Returns:
-        프론트엔드로 전송할 최종 JSON
-    """
+    
     risk_profile = user_context.get("risk_profile", "moderate")
     tone = RISK_PROFILE_TONE.get(risk_profile, "moderate")
 
@@ -209,7 +176,7 @@ if __name__ == "__main__":
     from simulation_agent.risk_classifier import classify_risk_factors
     from simulation_agent.monte_carlo import run_monte_carlo, N_PATHS
 
-    parser = argparse.ArgumentParser(description="Agent G 결과 패키징 테스트")
+    parser = argparse.ArgumentParser(description="Simulation Agent 결과 패키징 테스트")
     parser.add_argument("--ticker", default="005930")
     parser.add_argument("--user-id", default="u1")
     parser.add_argument("--db-path", default=DEFAULT_B_DB_PATH)
@@ -260,6 +227,5 @@ if __name__ == "__main__":
         current_price=current_price,
     )
 
-    # chart_data는 길어서 제외하고 출력
     output = {k: v for k, v in final.items() if k != "chart_data"}
     print(json.dumps(output, ensure_ascii=False, indent=2))

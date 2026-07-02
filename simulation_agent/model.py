@@ -20,10 +20,6 @@ MODEL_DIR.mkdir(exist_ok=True)
 
 
 class ReturnDistributionLSTM(nn.Module):
-    """
-    입력: (batch, sequence_length, n_features)
-    출력: mu, sigma  (각각 (batch,) 형태) — 향후 horizon일 누적 로그수익률의 정규분포 파라미터
-    """
 
     def __init__(self, n_features: int = N_FEATURES, hidden_size: int = 32, num_layers: int = 1):
         super().__init__()
@@ -46,7 +42,6 @@ class ReturnDistributionLSTM(nn.Module):
 
 
 def _gaussian_nll_loss(mu: torch.Tensor, sigma: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
-    """음의 로그우도(negative log-likelihood) — 분포 자체를 학습시키기 위한 손실 함수"""
     return (
         torch.log(sigma)
         + 0.5 * ((target - mu) / sigma) ** 2
@@ -122,7 +117,6 @@ def get_or_train_model(
     epochs: int = 50,
     force_retrain: bool = False,
 ) -> ReturnDistributionLSTM:
-    """ticker별로 모델을 캐싱. 이미 학습된 게 있으면 그대로 로드, 없으면 새로 학습 후 저장."""
     cache_path = MODEL_DIR / f"{ticker}.pt"
 
     cache_age = (time.time() - cache_path.stat().st_mtime) if cache_path.exists() else float("inf")
@@ -146,13 +140,7 @@ def predict_distribution(
     feature_table: pd.DataFrame,
     sequence_length: int = 60,
 ) -> dict:
-    """
-    가장 최근 sequence_length일 윈도우로 향후 horizon일 누적 로그수익률의 분포를 예측.
 
-    Returns:
-        {"mu": float, "sigma": float}
-        mu: 기대 누적 로그수익률, sigma: 표준편차
-    """
     x = to_lstm_input(feature_table, sequence_length=sequence_length, feature_cols=FEATURE_COLS)
     x_t = torch.from_numpy(x).unsqueeze(0)  # (1, seq_len, n_features)
 
@@ -169,14 +157,7 @@ def apply_shock(
     direction: str,
     magnitude_pct: float = 1.0,
 ) -> pd.DataFrame:
-    """
-    What-if 시뮬레이션용: 피처 테이블의 매크로 변수 컬럼에 충격을 적용한 복사본을 반환.
 
-    Args:
-        variable: MACRO_INDICATORS 중 하나 (예: "BASE_RATE_KR")
-        direction: "up" 또는 "down"
-        magnitude_pct: 충격 크기 (퍼센트 포인트, 기본 1.0 = ±1%p)
-    """
     if variable not in MACRO_INDICATORS:
         raise ValueError(f"지원하지 않는 변수입니다: {variable} (허용: {MACRO_INDICATORS})")
 
@@ -193,7 +174,7 @@ if __name__ == "__main__":
     from simulation_agent.data_collector import collect_simulation_inputs, DEFAULT_B_DB_PATH
     from simulation_agent.preprocessor import build_feature_table
 
-    parser = argparse.ArgumentParser(description="Agent G LSTM 모델 레이어 테스트")
+    parser = argparse.ArgumentParser(description="Simulation Agent LSTM 모델 레이어 테스트")
     parser.add_argument("--ticker", default="005930")
     parser.add_argument("--user-id", default="u1")
     parser.add_argument("--db-path", default=DEFAULT_B_DB_PATH)

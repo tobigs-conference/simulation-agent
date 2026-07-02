@@ -1,13 +1,3 @@
-"""
-Agent G (시뮬레이션 에이전트) - 5단계: Monte Carlo 샘플링
-
-4단계(model.py)가 예측한 분포(mu, sigma)를 기반으로
-1000개의 미래 가격 경로를 생성하고, 낙관/중립/비관 시나리오로 분류한다.
-
-What-if가 있는 경우(3단계에서 매크로 변수가 분류된 경우):
-  - 충격 전 분포 + 충격 후 분포 두 세트를 각각 샘플링해서 비교 결과를 만든다.
-"""
-
 import logging
 from typing import Optional
 
@@ -31,20 +21,13 @@ def sample_paths(
     n_paths: int = N_PATHS,
     seed: Optional[int] = None,
 ) -> np.ndarray:
-    """
-    LSTM이 예측한 (mu, sigma)로 horizon일간의 가격 경로를 n_paths개 생성.
 
-    Returns:
-        np.ndarray, shape (n_paths, horizon+1)
-        각 행이 하나의 가격 경로. 첫 번째 열은 current_price (시작점).
-    """
     rng = np.random.default_rng(seed)
 
-    # 일별 로그수익률: 누적 수익률(mu)을 horizon으로 나눠서 일별 기대값 추정
+    # 일별 로그수익률
     daily_mu = mu / horizon
     daily_sigma = sigma / np.sqrt(horizon)
 
-    # (n_paths, horizon) 형태로 일별 로그수익률 샘플링
     daily_log_returns = rng.normal(
         loc=daily_mu,
         scale=daily_sigma,
@@ -64,26 +47,7 @@ def summarize_paths(
     price_paths: np.ndarray,
     current_price: float,
 ) -> dict:
-    """
-    1000개 가격 경로를 요약 통계로 변환.
 
-    Returns:
-        {
-            "expected_return_pct": float,   # 평균 수익률 (%)
-            "upside_probability": float,    # 상승 확률 (0~1)
-            "volatility": float,            # 표준편차 (수익률 기준)
-            "scenarios": {
-                "optimistic": {...},        # 상위 25% 경로 평균
-                "neutral": {...},           # 중간 50% 경로 평균
-                "pessimistic": {...},       # 하위 25% 경로 평균
-            },
-            "percentile_paths": {          # 프론트 차트용 대표 경로
-                "p10": [...],
-                "p50": [...],
-                "p90": [...],
-            }
-        }
-    """
     final_prices = price_paths[:, -1]
     final_returns = (final_prices - current_price) / current_price
 
@@ -92,7 +56,7 @@ def summarize_paths(
     upside_probability = float(np.mean(final_returns > 0))
     volatility = float(np.std(final_returns))
 
-    # 시나리오 분류 (수익률 기준 퍼센타일로 구분)
+    # 시나리오 분류
     opt_mask = final_returns >= np.percentile(final_returns, OPTIMISTIC_PERCENTILE)
     pes_mask = final_returns <= np.percentile(final_returns, PESSIMISTIC_PERCENTILE)
     neu_mask = ~opt_mask & ~pes_mask
@@ -106,7 +70,7 @@ def summarize_paths(
             "path_count": int(mask.sum()),
         }
 
-    # 프론트 차트용 대표 경로 (10/50/90 퍼센타일)
+    # 프론트 차트용 대표 경로
     p10_idx = np.argsort(final_returns)[int(N_PATHS * 0.10)]
     p50_idx = np.argsort(final_returns)[int(N_PATHS * 0.50)]
     p90_idx = np.argsort(final_returns)[int(N_PATHS * 0.90)]
@@ -135,37 +99,7 @@ def run_monte_carlo(
     horizon: int = HORIZON,
     n_paths: int = N_PATHS,
 ) -> dict:
-    """
-    Monte Carlo 시뮬레이션 메인 함수.
 
-    Args:
-        base_prediction: {"mu": float, "sigma": float}  ← 4단계 predict_distribution() 결과
-        current_price: 현재 종가
-        shock_predictions: [
-            {
-                "variable": "BASE_RATE_KR",
-                "direction": "up",
-                "prediction": {"mu": float, "sigma": float}
-            },
-            ...
-        ]  ← What-if 예측 결과들 (없으면 None)
-        horizon: 예측 기간 (일)
-        n_paths: Monte Carlo 경로 수
-
-    Returns:
-        {
-            "base": { summarize_paths 결과 },
-            "what_if": [   ← shock_predictions가 있을 때만
-                {
-                    "variable": "BASE_RATE_KR",
-                    "direction": "up",
-                    "result": { summarize_paths 결과 },
-                    "impact_pct": float,  # 충격 후 기대수익률 - 충격 전 기대수익률
-                },
-                ...
-            ]
-        }
-    """
     # 일반 예측 경로 생성
     base_paths = sample_paths(
         mu=base_prediction["mu"],
@@ -188,7 +122,7 @@ def run_monte_carlo(
                 current_price=current_price,
                 horizon=horizon,
                 n_paths=n_paths,
-                seed=42,  # 동일 seed로 비교 일관성 확보
+                seed=42,
             )
             shock_summary = summarize_paths(shock_paths, current_price)
             impact = (
@@ -220,7 +154,7 @@ if __name__ == "__main__":
     from simulation_agent.model import get_or_train_model, predict_distribution, apply_shock
     from simulation_agent.risk_classifier import classify_risk_factors
 
-    parser = argparse.ArgumentParser(description="Agent G Monte Carlo 테스트")
+    parser = argparse.ArgumentParser(description="Simulation Agent Monte Carlo 테스트")
     parser.add_argument("--ticker", default="005930")
     parser.add_argument("--user-id", default="u1")
     parser.add_argument("--db-path", default=DEFAULT_B_DB_PATH)
@@ -282,7 +216,6 @@ if __name__ == "__main__":
         n_paths=N_PATHS,
     )
 
-    # percentile_paths는 길어서 제외하고 출력
     output = {
         "base": {k: v for k, v in mc_result["base"].items() if k != "percentile_paths"},
         "what_if": [
