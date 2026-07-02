@@ -40,19 +40,19 @@ Simulation Agent 파이프라인
 
 ```
 financial_research_simulation_agent/
-  requirements.txt
-  .env.example
-  simulation_agent/
-    service.py              # 진입점: run_simulation()
-    data_collector.py       # Data_Agent DB에서 데이터 수집
-    preprocessor.py         # 피처 테이블 생성 (로그수익률, 변동성 등)
-    risk_classifier.py      # LLM 기반 매크로 리스크 요인 분류
-    model.py                # LSTM 학습/예측/캐싱, apply_shock()
-    monte_carlo.py          # Monte Carlo 경로 생성 및 시나리오 요약
-    result_packager.py      # 결과 패키징 및 해석 문구 생성
-    _external_deps.py       # sys.path 연결
+├── requirements.txt
+├── .env.example
+│
+└── simulation_agent/
+    ├── service.py              # 진입점: run_simulation()
+    ├── data_collector.py       # Data Agent DB에서 데이터 수집
+    ├── preprocessor.py         # 피처 테이블 생성 (로그수익률, 변동성 등)
+    ├── risk_classifier.py      # LLM 기반 매크로 리스크 요인 분류
+    ├── model.py                # LSTM 학습/예측/캐싱, apply_shock()
+    ├── monte_carlo.py          # Monte Carlo 경로 생성 및 시나리오 요약
+    ├── result_packager.py      # 결과 패키징 및 해석 문구 생성
+    └── _external_deps.py       # sys.path 연결
 ```
-
 ---
 
 ## 5. 사전 준비
