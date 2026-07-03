@@ -160,4 +160,4 @@ if __name__ == "__main__":
         "bear_arguments": args.bear_arguments,
     },
 )
-print(json.dumps(result, ensure_ascii=False, indent=2))
+    print(json.dumps(result, ensure_ascii=False, indent=2))
