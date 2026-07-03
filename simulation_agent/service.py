@@ -26,7 +26,6 @@ async def run_simulation(
     logger.info("[G] run_simulation 시작 - ticker=%s, user_id=%s", ticker, user_id)
 
     try:
-        # 1단계: 데이터 수집
         logger.info("[G] 1단계: 데이터 수집")
         raw = collect_simulation_inputs(
             ticker=ticker, user_id=user_id, db_path=db_path
@@ -36,16 +35,13 @@ async def run_simulation(
             raise ValueError(f"현재가를 가져올 수 없습니다. (ticker={ticker}). 주가 데이터가 없거나 비어있습니다.")
         current_price = float(latest["current_price"])
 
-        # 2단계: 전처리
         logger.info("[G] 2단계: 전처리")
         table = build_feature_table(raw["price_data"], raw["macro_data"])
 
-        # 3단계: 리스크 분류
         logger.info("[G] 3단계: 리스크 분류")
         risk_factors = classify_risk_factors(macro_agenda=agenda_2)
         logger.info("[G] 분류된 리스크 요인: %s", risk_factors)
 
-        # 4단계: LSTM 예측
         logger.info("[G] 4단계: LSTM 예측")
         model = get_or_train_model(
             ticker=ticker,
@@ -55,7 +51,6 @@ async def run_simulation(
         )
         base_pred = predict_distribution(model, table)
 
-        # What-if 예측 (리스크 요인 있을 때만)
         shock_preds = []
         for rf in risk_factors:
             shocked = apply_shock(table, rf["variable"], rf["direction"])
@@ -66,7 +61,6 @@ async def run_simulation(
                 "prediction": shock_pred,
             })
 
-        # 5단계: Monte Carlo
         logger.info("[G] 5단계: Monte Carlo 샘플링")
         mc_result = run_monte_carlo(
             base_prediction=base_pred,
@@ -74,7 +68,6 @@ async def run_simulation(
             shock_predictions=shock_preds if shock_preds else None,
         )
 
-        # 6단계: 결과 패키징
         logger.info("[G] 6단계: 결과 패키징")
         final_result = package_result(
             ticker=ticker,
@@ -84,7 +77,6 @@ async def run_simulation(
             current_price=current_price,
         )
 
-        # 7단계: 프론트 전송
         logger.info("[G] 7단계: 프론트 전송")
         if send_result_fn:
             await send_result_fn(final_result)
@@ -128,7 +120,6 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
 
-    # 테스트용 더미 agenda_2
     agenda_2 = {
         "bull_summary": "환율 상승이 수출에 긍정적",
         "bull_arguments": "원달러 환율 상승으로 수출 채산성 개선",

@@ -1,15 +1,3 @@
-"""
-Agent G (시뮬레이션 에이전트) - 3단계: 리스크 요인 분류
-
-F로부터 받은 macro_agenda, risk_agenda(Bull 주장 + Bear 반박 텍스트)를 LLM에 넣어서,
-G가 What-if 시뮬레이션을 돌릴 수 있는 매크로 변수(금리/CPI/국채금리/환율) 중
-실제로 리스크로 언급된 게 있는지 분류한다.
-
-- 매칭되는 게 있으면: [{"variable": "BASE_RATE_KR", "direction": "up"}, ...]
-- 없으면: []  → G는 일반 예측만 수행 (4단계에서 폴백)
-
-LLM 호출: Upstage의 OpenAI 호환 엔드포인트 사용 (.env의 UPSTAGE_API_KEY 재사용).
-"""
 
 import json
 import logging
@@ -25,7 +13,6 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 UPSTAGE_BASE_URL = "https://api.upstage.ai/v1"
-# 분류처럼 가벼운 작업이라 가벼운 모델 사용. 실제 사용 가능한 모델명은 Upstage 문서에서 확인 필요.
 CLASSIFIER_MODEL = os.environ.get("RISK_CLASSIFIER_MODEL", "solar-pro")
 
 _SYSTEM_PROMPT = f"""당신은 금융 토론 텍스트에서 정량적으로 시뮬레이션 가능한 \
@@ -64,16 +51,32 @@ class RiskClassificationError(Exception):
 def _build_user_prompt(macro_agenda: Optional[dict], risk_agenda: Optional[dict]) -> str:
     parts = []
     if macro_agenda:
+        bull = " ".join(filter(None, [
+            macro_agenda.get("bull_summary", ""),
+            macro_agenda.get("bull_arguments", ""),
+        ]))
+        bear = " ".join(filter(None, [
+            macro_agenda.get("bear_summary", ""),
+            macro_agenda.get("bear_arguments", ""),
+        ]))
         parts.append(
             "[아젠다 2: 산업 및 매크로 환경]\n"
-            f"Bull 주장: {macro_agenda.get('bull_claim', '')}\n"
-            f"Bear 반박: {macro_agenda.get('bear_rebuttal', '')}"
+            f"Bull 주장: {bull}\n"
+            f"Bear 반박: {bear}"
         )
     if risk_agenda:
+        bull = " ".join(filter(None, [
+            risk_agenda.get("bull_summary", ""),
+            risk_agenda.get("bull_arguments", ""),
+        ]))
+        bear = " ".join(filter(None, [
+            risk_agenda.get("bear_summary", ""),
+            risk_agenda.get("bear_arguments", ""),
+        ]))
         parts.append(
             "[아젠다 3: 리스크 요인]\n"
-            f"Bull 주장: {risk_agenda.get('bull_claim', '')}\n"
-            f"Bear 반박: {risk_agenda.get('bear_rebuttal', '')}"
+            f"Bull 주장: {bull}\n"
+            f"Bear 반박: {bear}"
         )
     return "\n\n".join(parts) if parts else "(토론 텍스트 없음)"
 
@@ -115,10 +118,7 @@ def classify_risk_factors(
         raw_text = response.choices[0].message.content.strip()
     except Exception as e:
         logger.error("리스크 분류 LLM 호출 실패: %s", e)
-        # LLM 호출 자체가 실패해도 전체 파이프라인은 안 죽고 일반 예측으로 폴백
         return []
-
-    # 모델이 ```json ... ``` 형태로 감싸서 줄 수 있어 방어적으로 처리
     cleaned = raw_text.replace("```json", "").replace("```", "").strip()
 
     try:
@@ -129,7 +129,6 @@ def classify_risk_factors(
 
     risk_factors = parsed.get("risk_factors", [])
 
-    # 허용된 변수/방향 외의 값은 안전을 위해 필터링
     validated = [
         rf for rf in risk_factors
         if rf.get("variable") in MACRO_INDICATORS and rf.get("direction") in ("up", "down")
@@ -145,20 +144,20 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="Agent G 리스크 분류 레이어 테스트")
-    parser.add_argument(
-        "--macro-bull", default="환율 상승이 수출 채산성에 긍정적입니다."
-    )
-    parser.add_argument(
-        "--macro-bear", default="다만 기준금리가 추가 인상될 가능성이 있어 투자심리가 위축될 수 있습니다."
-    )
-    parser.add_argument("--risk-bull", default="실적 모멘텀이 견고합니다.")
-    parser.add_argument("--risk-bear", default="경쟁사 점유율 확대가 우려됩니다.")
+    parser.add_argument("--bull-summary", default="환율 상승이 수출 채산성에 긍정적입니다.")
+    parser.add_argument("--bull-arguments", default="원달러 환율 상승으로 수출 채산성 개선됩니다.")
+    parser.add_argument("--bear-summary", default="기준금리 추가 인상 우려가 있습니다.")
+    parser.add_argument("--bear-arguments", default="기준금리 추가 인상 시 투자심리가 위축될 수 있습니다.")
     args = parser.parse_args()
 
     logging.basicConfig(level=logging.INFO)
 
     result = classify_risk_factors(
-        macro_agenda={"bull_claim": args.macro_bull, "bear_rebuttal": args.macro_bear},
-        risk_agenda={"bull_claim": args.risk_bull, "bear_rebuttal": args.risk_bear},
-    )
-    print(json.dumps(result, ensure_ascii=False, indent=2))
+    macro_agenda={
+        "bull_summary": args.bull_summary,
+        "bull_arguments": args.bull_arguments,
+        "bear_summary": args.bear_summary,
+        "bear_arguments": args.bear_arguments,
+    },
+)
+print(json.dumps(result, ensure_ascii=False, indent=2))

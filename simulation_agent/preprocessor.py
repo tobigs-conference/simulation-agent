@@ -26,10 +26,8 @@ def _price_data_to_df(price_data: dict) -> pd.DataFrame:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
-    # 로그수익률: ln(close_t / close_t-1)
     df["log_return"] = np.log(df["close"] / df["close"].shift(1))
 
-    # volatility_30d가 비어 있으면 직접 계산한 30일 롤링 변동성으로 대체
     if "volatility_30d" not in df.columns or df["volatility_30d"].isna().all():
         df["volatility_30d"] = df["log_return"].rolling(window=30, min_periods=5).std()
 
@@ -79,7 +77,7 @@ def build_feature_table(
             merged.sort_values("date"),
             macro_df.sort_values("date"),
             on="date",
-            direction="backward",  # 가격 시점 기준, 그 직전(또는 같은날) 매크로 값 사용
+            direction="backward",
         )
     else:
         for col in MACRO_INDICATORS:

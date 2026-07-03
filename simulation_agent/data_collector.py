@@ -17,10 +17,6 @@ DEFAULT_B_DB_PATH = os.environ.get(
     "B_DB_PATH", "../financial-research-agent/db/reports.db"
 )
 
-
-# ──────────────────────────────────────────────────────────────
-# get_user_context 목업
-# ──────────────────────────────────────────────────────────────
 def _mock_get_user_context(user_id: str) -> dict:
     logger.warning(
         "get_user_context()가 아직 실제 구현과 연결되지 않았습니다. "
@@ -41,9 +37,6 @@ def _mock_get_user_context(user_id: str) -> dict:
 get_user_context = _mock_get_user_context
 
 
-# ──────────────────────────────────────────────────────────────
-# simulation_agent의 데이터 수집 진입점
-# ──────────────────────────────────────────────────────────────
 def collect_simulation_inputs(
     ticker: str,
     user_id: str,

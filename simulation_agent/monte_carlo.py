@@ -5,12 +5,11 @@ import numpy as np
 
 logger = logging.getLogger(__name__)
 
-N_PATHS = 1000  # Monte Carlo 경로 수
-HORIZON = 30    # 예측 기간 (일)
+N_PATHS = 1000 
+HORIZON = 30 
 
-# 시나리오 분류 기준 (상위/하위 몇 % 기준으로 낙관/비관 구분)
-OPTIMISTIC_PERCENTILE = 90  # 상위 10%
-PESSIMISTIC_PERCENTILE = 10  # 하위 10%
+OPTIMISTIC_PERCENTILE = 90
+PESSIMISTIC_PERCENTILE = 10 
 
 
 def sample_paths(
@@ -24,7 +23,6 @@ def sample_paths(
 
     rng = np.random.default_rng(seed)
 
-    # 일별 로그수익률
     daily_mu = mu / horizon
     daily_sigma = sigma / np.sqrt(horizon)
 
@@ -34,7 +32,6 @@ def sample_paths(
         size=(n_paths, horizon),
     )
 
-    # 누적 로그수익률 → 가격 경로
     cumulative = np.cumsum(daily_log_returns, axis=1)
     price_paths = current_price * np.exp(
         np.concatenate([np.zeros((n_paths, 1)), cumulative], axis=1)
@@ -51,12 +48,10 @@ def summarize_paths(
     final_prices = price_paths[:, -1]
     final_returns = (final_prices - current_price) / current_price
 
-    # 기본 통계
     expected_return_pct = float(np.mean(final_returns) * 100)
     upside_probability = float(np.mean(final_returns > 0))
     volatility = float(np.std(final_returns))
 
-    # 시나리오 분류
     opt_mask = final_returns >= np.percentile(final_returns, OPTIMISTIC_PERCENTILE)
     pes_mask = final_returns <= np.percentile(final_returns, PESSIMISTIC_PERCENTILE)
     neu_mask = ~opt_mask & ~pes_mask
@@ -70,7 +65,6 @@ def summarize_paths(
             "path_count": int(mask.sum()),
         }
 
-    # 프론트 차트용 대표 경로
     p10_idx = np.argsort(final_returns)[int(N_PATHS * 0.10)]
     p50_idx = np.argsort(final_returns)[int(N_PATHS * 0.50)]
     p90_idx = np.argsort(final_returns)[int(N_PATHS * 0.90)]
@@ -100,7 +94,6 @@ def run_monte_carlo(
     n_paths: int = N_PATHS,
 ) -> dict:
 
-    # 일반 예측 경로 생성
     base_paths = sample_paths(
         mu=base_prediction["mu"],
         sigma=base_prediction["sigma"],
@@ -113,7 +106,6 @@ def run_monte_carlo(
 
     result = {"base": base_summary, "what_if": []}
 
-    # What-if 경로 생성 (리스크 요인이 분류된 경우에만)
     if shock_predictions:
         for shock in shock_predictions:
             shock_paths = sample_paths(
@@ -165,16 +157,13 @@ if __name__ == "__main__":
 
     logging.basicConfig(level=logging.INFO)
 
-    # 1단계: 데이터 수집
     raw = collect_simulation_inputs(
         ticker=args.ticker, user_id=args.user_id, db_path=args.db_path
     )
 
-    # 2단계: 전처리
     table = build_feature_table(raw["price_data"], raw["macro_data"])
     current_price = float(raw["price_data"]["latest"]["current_price"])
 
-    # 3단계: 리스크 분류 (테스트용 더미 아젠다)
     macro_agenda = {
         "bull_summary": "환율 상승이 수출에 긍정적",
         "bull_arguments": "원달러 환율 상승으로 수출 채산성 개선",
@@ -184,7 +173,6 @@ if __name__ == "__main__":
     risk_factors = classify_risk_factors(macro_agenda=macro_agenda)
     logger.info("분류된 리스크 요인: %s", risk_factors)
 
-    # 4단계: LSTM 예측
     model = get_or_train_model(
         ticker=args.ticker,
         feature_table=table,
@@ -196,7 +184,6 @@ if __name__ == "__main__":
     base_pred = predict_distribution(model, table, sequence_length=args.sequence_length)
     logger.info("일반 예측: %s", base_pred)
 
-    # What-if 예측 (리스크 요인 있을 때만)
     shock_preds = []
     for rf in risk_factors:
         shocked_table = apply_shock(table, rf["variable"], rf["direction"])
@@ -207,7 +194,6 @@ if __name__ == "__main__":
             "prediction": shock_pred,
         })
 
-    # 5단계: Monte Carlo
     mc_result = run_monte_carlo(
         base_prediction=base_pred,
         current_price=current_price,
